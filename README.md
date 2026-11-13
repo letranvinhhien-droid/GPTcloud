@@ -20,7 +20,7 @@ npm start
 
 `npm start` serves the production bundle. `PORT` changes the port; `LMS_DB` changes the SQLite database path. The default is `.data/lms.sqlite`, created and seeded once. Back up the database before changing or removing it. Processes must be restarted after an environment restart.
 
-For a public HTTPS website, use the included [Render blueprint](render.yaml) and [deployment guide](docs/render-deployment.md). It uses a paid Node service with persistent storage, disables demo access, and starts with an empty database. The guide covers publishing the source to GitHub, creating the service, and provisioning your admin account.
+For a public HTTPS website using a free plan, follow the [Cloudflare deployment guide](docs/cloudflare-deployment.md). It serves the frontend on Workers and stores the LMS in a SQLite-backed Durable Object, with no paid plan configured. The guide covers importing this branch from GitHub and securely creating the first admin in your browser. The `codex/render-lms` branch retains the earlier paid-hosting alternative.
 
 ## Workflows
 
@@ -78,7 +78,10 @@ The backend checks user roles, course eligibility, quiz deadlines and attempts, 
 - `src/components/NativeGames.jsx`: game builder, preview, and learner play.
 - `src/components/NativeLibrary.jsx`: native quiz and game library.
 - `src/components/CourseMetrics.jsx`: configurable metrics and visualizations.
-- `server/index.js`: API, sessions, enrollment, submissions, and app server.
+- `server/index.js`: local Node server and SQLite startup.
+- `server/app.js`: shared API, enrollment, submissions, and grading.
+- `workers/index.js`: Cloudflare entry point and durable workspace.
+- `workers/store.js`: persistent SQLite adapter for the shared API.
 - `server/auth.js`: account authentication, sessions, and password management.
 - `server/manage-users.js`: operator account provisioning and password reset.
 - `server/games.js`: native game validation, attempt snapshots, and server scoring.

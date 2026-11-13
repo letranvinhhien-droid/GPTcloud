@@ -376,7 +376,11 @@ function App() {
       <AuthPage
         {...authConfig}
         onAuthenticated={async () => {
-          await refresh();
+          const [, config] = await Promise.all([
+            refresh(),
+            api("/auth/config"),
+          ]);
+          setAuthConfig(config);
           go("overview");
         }}
       />

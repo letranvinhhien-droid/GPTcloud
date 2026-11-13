@@ -161,15 +161,21 @@ function issueSession(store, req, res, user) {
   });
 }
 
-// The socket address is intentionally used, not X-Forwarded-For, which callers can spoof.
-// Multi-instance deployments should replace this local limiter with a shared store.
-function createLimiter(limit, windowMs) {
+// The default uses the socket address, never caller-controlled forwarding headers.
+// A hosting adapter may provide a verified client identity from its trusted edge.
+function createLimiter(limit, windowMs, clientAddress) {
   const buckets = new Map();
   return (req, res, next) => {
     const now = Date.now();
     for (const [key, bucket] of buckets)
       if (bucket.until <= now) buckets.delete(key);
-    const key = req.socket.remoteAddress || "local";
+    const verified = clientAddress?.(req);
+    const key =
+      typeof verified === "string" &&
+      verified.length > 0 &&
+      verified.length <= 128
+        ? verified
+        : req.socket?.remoteAddress || "local";
     const bucket = buckets.get(key) || { count: 0, until: now + windowMs };
     bucket.count += 1;
     buckets.set(key, bucket);
@@ -189,18 +195,35 @@ function createLimiter(limit, windowMs) {
   };
 }
 
-export function installAccountRoutes(app, { store, demo, auth }) {
-  const loginLimit = createLimiter(15, 10 * 60 * 1000);
-  const registrationLimit = createLimiter(10, 15 * 60 * 1000);
-  const passwordLimit = createLimiter(10, 15 * 60 * 1000);
-  const demoLimit = createLimiter(30, 10 * 60 * 1000);
+export function installAccountRoutes(
+  app,
+  { store, demo, auth, bootstrap = false, setupToken, clientAddress },
+) {
+  const loginLimit = createLimiter(15, 10 * 60 * 1000, clientAddress);
+  const registrationLimit = createLimiter(10, 15 * 60 * 1000, clientAddress);
+  const passwordLimit = createLimiter(10, 15 * 60 * 1000, clientAddress);
+  const demoLimit = createLimiter(30, 10 * 60 * 1000, clientAddress);
+  const setupLimit = createLimiter(5, 15 * 60 * 1000, clientAddress);
+  const setupFinished = () =>
+    Boolean(store.get("system", "admin-setup-complete")) ||
+    store.all("users").some((user) => user.role === "admin");
+  const setupRequired = () => bootstrap && !setupFinished();
+  const validSetupToken =
+    typeof setupToken === "string" &&
+    setupToken.length >= 32 &&
+    setupToken.length <= 512;
+  const expectedSetupHash = validSetupToken
+    ? createHash("sha256").update(setupToken).digest()
+    : null;
   let dummyHash;
   const getDummyHash = () =>
     (dummyHash ||= hashPassword(randomBytes(24).toString("hex")));
 
   app.use("/api/auth", (req, res, next) => {
     if (
-      ["/login", "/register", "/password", "/demo"].includes(req.path) &&
+      ["/login", "/register", "/password", "/demo", "/setup"].includes(
+        req.path,
+      ) &&
       !["GET", "HEAD"].includes(req.method)
     ) {
       if (!req.body || typeof req.body !== "object" || Array.isArray(req.body))
@@ -211,11 +234,84 @@ export function installAccountRoutes(app, { store, demo, auth }) {
     next();
   });
 
-  app.get("/api/auth/config", (req, res) =>
-    res.json({ demoEnabled: demo, registrationEnabled: true }),
-  );
+  app.get("/api/auth/config", (req, res) => {
+    const required = setupRequired();
+    res.json({
+      demoEnabled: demo,
+      registrationEnabled: !required,
+      ...(bootstrap
+        ? { setupRequired: required, setupEnabled: required && validSetupToken }
+        : {}),
+    });
+  });
+
+  app.post("/api/auth/setup", setupLimit, async (req, res) => {
+    requireValue(bootstrap, "Administrator setup is unavailable.", 404);
+    requireValue(
+      !setupFinished(),
+      "Administrator setup is already complete.",
+      409,
+    );
+    requireValue(
+      validSetupToken,
+      "Administrator setup is not configured.",
+      503,
+    );
+    requireValue(
+      typeof req.body.setupToken === "string" &&
+        req.body.setupToken.length <= 512,
+      "Invalid setup key.",
+      403,
+    );
+    const suppliedHash = createHash("sha256")
+      .update(req.body.setupToken)
+      .digest();
+    requireValue(
+      timingSafeEqual(suppliedHash, expectedSetupHash),
+      "Invalid setup key.",
+      403,
+    );
+    const email = normalizeEmail(req.body.email);
+    const name = text(req.body.name, "Name", 100).replace(/\s+/g, " ");
+    const passwordHash = await hashPassword(req.body.password);
+    const user = store.transaction(() => {
+      // Hashing yields; recheck inside the transaction so only one owner can win.
+      requireValue(
+        !setupFinished(),
+        "Administrator setup is already complete.",
+        409,
+      );
+      requireValue(
+        !accountByEmail(store, email),
+        "An account with that email already exists.",
+        409,
+      );
+      const created = store.put("users", {
+        id: uid(),
+        name,
+        email,
+        role: "admin",
+        passwordHash,
+        createdAt: iso(),
+        passwordChangedAt: iso(),
+      });
+      store.put("system", {
+        id: "admin-setup-complete",
+        adminId: created.id,
+        createdAt: iso(),
+      });
+      return created;
+    });
+    issueSession(store, req, res, user);
+    res.status(201).json({ user: publicUser(user) });
+  });
 
   app.post("/api/auth/register", registrationLimit, async (req, res) => {
+    requireValue(
+      !setupRequired(),
+      "An administrator must finish workspace setup before learner registration.",
+      403,
+    );
     requireValue(
       !req.body.role || req.body.role === "learner",
       "New accounts can only register as learners.",
