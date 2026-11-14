@@ -6,9 +6,126 @@
     <meta name="theme-color" content="#354f3b" />
     <title>Meridian — A place to grow</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      body {
+        margin: 0;
+        background: #f7f9f4;
+      }
+      .startup-screen {
+        box-sizing: border-box;
+        min-height: 100vh;
+        min-height: 100dvh;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: #f7f9f4;
+        color: #36543e;
+        font:
+          500 14px/1.6 system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        text-align: center;
+      }
+      .startup-brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        font-size: 30px;
+        font-weight: 750;
+        letter-spacing: -1.3px;
+      }
+      .startup-brand svg {
+        width: 34px;
+        height: 34px;
+      }
+      .startup-brand-dot {
+        color: #8b9e70;
+      }
+      .startup-spinner {
+        box-sizing: border-box;
+        width: 34px;
+        height: 34px;
+        border: 3px solid #e0e8d6;
+        border-top-color: #67834e;
+        border-radius: 50%;
+        animation: startup-spin 900ms linear infinite;
+      }
+      .startup-message {
+        margin: 0;
+        max-width: 340px;
+        color: #5a7051;
+      }
+      .startup-retry {
+        padding: 11px 22px;
+        border: 0;
+        border-radius: 8px;
+        background: #36543e;
+        color: #fff;
+        font: inherit;
+        font-weight: 650;
+        cursor: pointer;
+      }
+      .startup-retry:focus-visible {
+        outline: 3px solid #8b9e70;
+        outline-offset: 4px;
+      }
+      .startup-spinner[hidden],
+      .startup-retry[hidden] {
+        display: none;
+      }
+      @keyframes startup-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .startup-spinner {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="startup-screen" role="status" aria-live="polite">
+        <div class="startup-brand">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path
+              d="M6 25V7l10 11L26 7v18M16 18v7"
+              stroke="currentColor"
+              stroke-width="2.7"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span>meridian<span class="startup-brand-dot">.</span></span>
+        </div>
+        <div class="startup-spinner" aria-hidden="true"></div>
+        <p class="startup-message" id="startup-message">
+          Opening your workspace…
+        </p>
+        <button class="startup-retry" id="startup-retry" type="button" hidden>
+          Try again
+        </button>
+      </div>
+    </div>
+    <noscript>
+      <style>
+        #root {
+          display: none;
+        }
+      </style>
+      <div class="startup-screen">
+        <p class="startup-message">
+          Enable JavaScript in your browser to open Meridian.
+        </p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

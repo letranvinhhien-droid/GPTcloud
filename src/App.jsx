@@ -36,6 +36,7 @@ import {
 import { api } from "./api";
 import CourseWorkspace from "./components/CourseWorkspace";
 import AuthPage from "./components/AuthPage";
+import StartupScreen from "./components/StartupScreen";
 import CourseMetrics from "./components/CourseMetrics";
 import ContentLibrary from "./components/NativeLibrary";
 import { Gradebook, People, Settings } from "./components/Reports";
@@ -348,15 +349,7 @@ function App() {
       notify(e.message, "error");
     }
   }
-  if (loading)
-    return (
-      <div className="app-loading">
-        <Logo />
-        <span>
-          Opening your workspace<span className="loading-dots">…</span>
-        </span>
-      </div>
-    );
+  if (loading) return <StartupScreen />;
   if (error)
     return (
       <div className="app-loading">
