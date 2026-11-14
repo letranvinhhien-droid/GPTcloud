@@ -1,25 +1,27 @@
 # Put Meridian online on Cloudflare's free plan
 
-Use the **`codex/cloudflare-free`** branch. It serves the website on Cloudflare Workers and stores courses, accounts, quiz/game attempts, grades, and metrics in one SQLite-backed Durable Object. These services are available on Workers Free. This configuration does not activate a paid plan, create a paid disk, or require a custom domain.
-
-The earlier `codex/render-lms` branch uses paid Render storage. Use this Cloudflare branch for the free-plan deployment.
+The repository's **default branch** contains the free Cloudflare deployment. The **`codex/cloudflare-free`** branch contains the same deployment for interfaces that offer a branch selector. It serves the website on Cloudflare Workers and stores courses, accounts, quiz/game attempts, grades, and metrics in one SQLite-backed Durable Object. These services are available on Workers Free. This configuration does not activate a paid plan, create a paid disk, or require a custom domain.
 
 ## 1. Connect the GitHub repository
 
 1. Sign in to [Cloudflare](https://dash.cloudflare.com/) and stay on **Workers Free**.
 2. Open **Workers & Pages → Create application** and choose the option to import a Git repository.
-3. Connect **`letranvinhhien-droid/GPTcloud`** and choose branch **`codex/cloudflare-free`**.
+3. Connect **`letranvinhhien-droid/GPTcloud`**. If the import screen does not show a branch selector, continue with its default branch. If a selector is shown, you can choose **`codex/cloudflare-free`**.
 4. Use these build settings if the dashboard asks for them:
 
-| Setting               | Value                                   |
-| --------------------- | --------------------------------------- |
-| Project / Worker name | `meridian-lms`                          |
-| Root directory        | Repository root; leave blank or use `/` |
-| Build command         | `npm run build`                         |
-| Deploy command        | `npx wrangler deploy`                   |
-| Node version          | 24 (also specified in `.node-version`)  |
+| Setting                        | Value                                                |
+| ------------------------------ | ---------------------------------------------------- |
+| Project / Worker name          | `meridian-lms`                                       |
+| Root directory                 | Repository root; leave blank or use `/`              |
+| Build command                  | `npm run build`                                      |
+| Deploy command                 | `npx wrangler deploy`                                |
+| Node version                   | 24 (also specified in `.node-version`)               |
+| Enable Preview builds          | Off for this initial deployment                      |
+| Protect with Cloudflare Access | Off; the LMS has its own sign-in                     |
+| API token                      | Create new token; name it `meridian-builds` if asked |
 
-5. Deploy. The repository's `wrangler.jsonc` supplies the asset directory, bindings, and SQLite migration. The dashboard will provide your exact HTTPS **`workers.dev`** address. Open that address on your phone or computer.
+5. Leave the optional variable fields blank for the initial deployment. Cloudflare creates the build token automatically; you do not need to paste an API token into the form or chat. The administrator setup secret is added to the deployed Worker in the next section.
+6. Deploy. The repository's `wrangler.jsonc` supplies the asset directory, bindings, and SQLite migration. The dashboard will provide your exact HTTPS **`workers.dev`** address. Open that address on your phone or computer.
 
 Do not enter `/workspace/GPTcloud` as the repository root: that path belongs to the development machine. No Render account or paid plan is needed. If the hosting dashboard asks you to activate billing or upgrade, stop and check that you selected Workers Free; this app does not need those paid options. Cloudflare controls account eligibility and verification.
 

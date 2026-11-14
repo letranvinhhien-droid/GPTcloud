@@ -20,7 +20,7 @@ npm start
 
 `npm start` serves the production bundle. `PORT` changes the port; `LMS_DB` changes the SQLite database path. The default is `.data/lms.sqlite`, created and seeded once. Back up the database before changing or removing it. Processes must be restarted after an environment restart.
 
-For a public HTTPS website using a free plan, follow the [Cloudflare deployment guide](docs/cloudflare-deployment.md). It serves the frontend on Workers and stores the LMS in a SQLite-backed Durable Object, with no paid plan configured. The guide covers importing this branch from GitHub and securely creating the first admin in your browser. The `codex/render-lms` branch retains the earlier paid-hosting alternative.
+For a public HTTPS website using a free plan, follow the [Cloudflare deployment guide](docs/cloudflare-deployment.md). It serves the frontend on Workers and stores the LMS in a SQLite-backed Durable Object, with no paid plan configured. The repository's default branch contains this deployment, so Cloudflare can import it without a branch selector. The guide also covers securely creating the first admin in your browser.
 
 ## Workflows
 
