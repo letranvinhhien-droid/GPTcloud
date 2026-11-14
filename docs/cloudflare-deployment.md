@@ -30,12 +30,23 @@ Do not enter `/workspace/GPTcloud` as the repository root: that path belongs to 
 The initial page is locked until the owner supplies a setup key. A public visitor cannot claim the first admin account just by arriving first.
 
 1. In Cloudflare, open your deployed Worker, then **Settings → Variables and Secrets**.
-2. Add a **Secret** named **`LMS_SETUP_TOKEN`**. Generate a random value of at least 32 characters with your password manager and save it privately. Use a different value from your eventual account password. Do not put this value in GitHub, a URL, or chat.
+2. Add a **Secret** named **`LMS_SETUP_TOKEN`**. Generate a random value of 32–512 characters with your password manager and save it privately. Punctuation, including a full stop, is accepted. Use a different value from your eventual account password. Do not put this value in GitHub, a URL, or chat.
 3. Save and deploy the secret change, then reload your public LMS page.
 4. On **Set up your workspace**, enter that setup key, your name, email, and a new account password. Submit to create your admin account and sign in.
 5. After setup succeeds, delete `LMS_SETUP_TOKEN` from the Worker's secrets and deploy that change. The database permanently records that initial setup is complete, so removing the key does not reopen setup.
 
 You can now create courses, quizzes and games, review grades, and configure targets under **Analytics**. Learners can register after setup is complete. This deployment starts with an empty database and no demo accounts. It does not copy the local development database.
+
+### If setup stays pending after saving the secret
+
+Open `/api/auth/config` on your public LMS address. Its response reports setup status without returning the secret. If `setupEnabled` is false, the updated app also reports `setupIssue`:
+
+- `missing_key`: the running workspace has no setup key. Confirm the secret belongs to the production Worker's **Settings → Variables and Secrets**, and that the version containing it is deployed to production.
+- `invalid_key`: the runtime received a value that is not a string of 32–512 characters. Correct the secret value, then save and deploy.
+
+The app reads the setup binding on each request. Cloudflare documents that [binding-only changes may reuse running isolates](https://developers.cloudflare.com/workers/runtime-apis/bindings/#making-changes-to-bindings), so retaining a value from startup can leave the app using an old configuration. This deployment sets the [Durable Object update strategy](https://developers.cloudflare.com/durable-objects/deployments/durable-objects-code-updates/) to `immediate`, so a code deployment updates the running workspace promptly. Immediate updates can interrupt an in-flight request during deployment. Stored data and workspace identity remain the same.
+
+If the response has `setupRequired: true` and `setupEnabled: false` but no `setupIssue`, it may be running the earlier app version. Deploy the updated code before using these diagnostics. Keep the setup key private; sharing the status response is sufficient for troubleshooting.
 
 ## Data and free-plan limits
 

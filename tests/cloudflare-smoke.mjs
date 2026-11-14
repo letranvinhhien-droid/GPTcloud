@@ -17,7 +17,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temp = mkdtempSync(join(tmpdir(), "meridian-cloudflare-"));
 const port = Number(process.env.CLOUDFLARE_TEST_PORT || 3113);
 const base = `http://127.0.0.1:${port}`;
-const setupToken = randomBytes(32).toString("hex");
+// Exercise the minimum accepted length and punctuation in the Workers runtime.
+const setupToken = `${randomBytes(15).toString("hex")}.!`;
 const password = randomBytes(24).toString("hex");
 const sensitive = [setupToken, password];
 const config = JSON.parse(

@@ -208,13 +208,22 @@ export function installAccountRoutes(
     Boolean(store.get("system", "admin-setup-complete")) ||
     store.all("users").some((user) => user.role === "admin");
   const setupRequired = () => bootstrap && !setupFinished();
-  const validSetupToken =
-    typeof setupToken === "string" &&
-    setupToken.length >= 32 &&
-    setupToken.length <= 512;
-  const expectedSetupHash = validSetupToken
-    ? createHash("sha256").update(setupToken).digest()
-    : null;
+  // A hosting platform can update secret bindings while reusing the app.
+  // Resolve the current key for each request instead of caching its initial
+  // value (or digest) when the workspace starts.
+  const currentSetupConfiguration = () => {
+    const value = typeof setupToken === "function" ? setupToken() : setupToken;
+    const valid =
+      typeof value === "string" && value.length >= 32 && value.length <= 512;
+    return {
+      key: valid ? value : null,
+      issue: valid
+        ? null
+        : value == null || value === ""
+          ? "missing_key"
+          : "invalid_key",
+    };
+  };
   let dummyHash;
   const getDummyHash = () =>
     (dummyHash ||= hashPassword(randomBytes(24).toString("hex")));
@@ -236,11 +245,18 @@ export function installAccountRoutes(
 
   app.get("/api/auth/config", (req, res) => {
     const required = setupRequired();
+    const configuration = required ? currentSetupConfiguration() : null;
     res.json({
       demoEnabled: demo,
       registrationEnabled: !required,
       ...(bootstrap
-        ? { setupRequired: required, setupEnabled: required && validSetupToken }
+        ? {
+            setupRequired: required,
+            setupEnabled: required && Boolean(configuration.key),
+            ...(configuration?.issue
+              ? { setupIssue: configuration.issue }
+              : {}),
+          }
         : {}),
     });
   });
@@ -252,11 +268,8 @@ export function installAccountRoutes(
       "Administrator setup is already complete.",
       409,
     );
-    requireValue(
-      validSetupToken,
-      "Administrator setup is not configured.",
-      503,
-    );
+    const { key: configuredKey } = currentSetupConfiguration();
+    requireValue(configuredKey, "Administrator setup is not configured.", 503);
     requireValue(
       typeof req.body.setupToken === "string" &&
         req.body.setupToken.length <= 512,
@@ -265,6 +278,9 @@ export function installAccountRoutes(
     );
     const suppliedHash = createHash("sha256")
       .update(req.body.setupToken)
+      .digest();
+    const expectedSetupHash = createHash("sha256")
+      .update(configuredKey)
       .digest();
     requireValue(
       timingSafeEqual(suppliedHash, expectedSetupHash),

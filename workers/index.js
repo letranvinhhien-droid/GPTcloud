@@ -1,4 +1,4 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject, env as currentEnv } from "cloudflare:workers";
 import { handleAsNodeRequest } from "cloudflare:node";
 import { createServer } from "node:http";
 import { createLmsApp } from "../server/app.js";
@@ -16,7 +16,9 @@ export class MeridianWorkspace extends DurableObject {
       demo: false,
       seed: false,
       bootstrap: true,
-      setupToken: env.LMS_SETUP_TOKEN,
+      // Resolve the active binding during each request. Binding-only updates
+      // can reuse running isolates, so don't capture the key at construction.
+      setupToken: () => currentEnv.LMS_SETUP_TOKEN,
       // Only the front Worker can address this Durable Object. It replaces this
       // header with Cloudflare's client address before making the binding call.
       clientAddress: (req) =>

@@ -60,7 +60,14 @@ async function fixture(t, options = {}) {
 }
 
 test("bootstrap readiness requires a server setup key and blocks learner registration", async (t) => {
-  for (const configured of [undefined, "too-short"]) {
+  for (const [configured, issue] of [
+    [undefined, "missing_key"],
+    [null, "missing_key"],
+    ["", "missing_key"],
+    [123, "invalid_key"],
+    ["too-short", "invalid_key"],
+    ["x".repeat(513), "invalid_key"],
+  ]) {
     const f = await fixture(t, { setupToken: configured });
     const config = await f.request("/auth/config");
     assert.deepEqual(config.data, {
@@ -68,7 +75,11 @@ test("bootstrap readiness requires a server setup key and blocks learner registr
       registrationEnabled: false,
       setupRequired: true,
       setupEnabled: false,
+      setupIssue: issue,
     });
+    assert.equal(JSON.stringify(config.data).includes(setupToken), false);
+    if (typeof configured === "string" && configured.length > 0)
+      assert.equal(JSON.stringify(config.data).includes(configured), false);
     assert.equal(
       (await f.request("/auth/setup", { method: "POST", body: owner })).status,
       503,
@@ -83,10 +94,100 @@ test("bootstrap readiness requires a server setup key and blocks learner registr
   }
 });
 
+test("setup reads an added or rotated key without rebuilding the app", async (t) => {
+  let currentKey;
+  const f = await fixture(t, { setupToken: () => currentKey });
+  const initial = await f.request("/auth/config");
+  assert.equal(initial.data.setupEnabled, false);
+  assert.equal(initial.data.setupIssue, "missing_key");
+
+  const firstKey = `${randomBytes(16).toString("hex").slice(0, 31)}.`;
+  const rotatedKey = `${randomBytes(16).toString("hex").slice(0, 31)}.`;
+  assert.equal(firstKey.length, 32);
+  assert.equal(rotatedKey.length, 32);
+  currentKey = firstKey;
+  const enabled = await f.request("/auth/config");
+  assert.equal(enabled.data.setupRequired, true);
+  assert.equal(enabled.data.setupEnabled, true);
+  assert.equal(Object.hasOwn(enabled.data, "setupIssue"), false);
+  assert.equal(JSON.stringify(enabled.data).includes(firstKey), false);
+
+  currentKey = rotatedKey;
+  const rejected = await f.request("/auth/setup", {
+    method: "POST",
+    body: { ...owner, setupToken: firstKey },
+  });
+  assert.equal(rejected.status, 403);
+  assert.equal(rejected.cookie, undefined);
+  assert.equal(f.store.all("users").length, 0);
+  for (const secret of [firstKey, rotatedKey, password])
+    assert.equal(JSON.stringify(rejected.data).includes(secret), false);
+
+  const created = await f.request("/auth/setup", {
+    method: "POST",
+    body: { ...owner, setupToken: rotatedKey },
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.data.user.role, "admin");
+  assert.ok(created.cookie);
+  for (const secret of [firstKey, rotatedKey, password])
+    assert.equal(JSON.stringify(created.data).includes(secret), false);
+
+  currentKey = undefined;
+  assert.deepEqual((await f.request("/auth/config")).data, {
+    demoEnabled: false,
+    registrationEnabled: true,
+    setupRequired: false,
+    setupEnabled: false,
+  });
+  assert.equal(
+    (
+      await f.request("/auth/setup", {
+        method: "POST",
+        body: { ...owner, setupToken: rotatedKey },
+      })
+    ).status,
+    409,
+  );
+  assert.equal(f.store.all("users").length, 1);
+});
+
+test("removing or invalidating the live setup key disables unfinished setup", async (t) => {
+  let currentKey = setupToken;
+  const f = await fixture(t, { setupToken: () => currentKey });
+  assert.equal((await f.request("/auth/config")).data.setupEnabled, true);
+
+  for (const unavailable of [undefined, "too-short", "x".repeat(513)]) {
+    currentKey = unavailable;
+    const config = await f.request("/auth/config");
+    assert.equal(config.data.setupRequired, true);
+    assert.equal(config.data.setupEnabled, false);
+    assert.equal(config.data.registrationEnabled, false);
+    assert.equal(
+      config.data.setupIssue,
+      unavailable === undefined ? "missing_key" : "invalid_key",
+    );
+    assert.equal(JSON.stringify(config.data).includes(setupToken), false);
+    if (unavailable)
+      assert.equal(JSON.stringify(config.data).includes(unavailable), false);
+    const response = await f.request("/auth/setup", {
+      method: "POST",
+      body: owner,
+    });
+    assert.equal(response.status, 503);
+    assert.equal(response.cookie, undefined);
+    for (const secret of [setupToken, password])
+      assert.equal(JSON.stringify(response.data).includes(secret), false);
+    assert.equal(f.store.all("users").length, 0);
+    assert.equal(f.store.all("sessions").length, 0);
+  }
+});
+
 test("setup key and account validation reject invalid requests without leaking credentials", async (t) => {
   const f = await fixture(t);
   const config = await f.request("/auth/config");
   assert.equal(config.data.setupEnabled, true);
+  assert.equal(Object.hasOwn(config.data, "setupIssue"), false);
   assert.equal(JSON.stringify(config.data).includes(setupToken), false);
   for (const attempted of [undefined, 123, "wrong-key", "x".repeat(513)]) {
     const response = await f.request("/auth/setup", {

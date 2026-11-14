@@ -18,6 +18,7 @@
     "LMS_COOKIE_SECURE": "true",
   },
   "durable_objects": {
+    "code_update_strategy": { "mode": "immediate" },
     "bindings": [
       {
         "name": "LMS_WORKSPACE",

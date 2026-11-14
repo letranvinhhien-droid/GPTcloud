@@ -40,6 +40,7 @@ export default function AuthPage({
   registrationEnabled = true,
   setupRequired = false,
   setupEnabled = false,
+  setupIssue,
 }) {
   const [mode, setMode] = useState("login");
   const [name, setName] = useState("");
@@ -187,7 +188,11 @@ export default function AuthPage({
             {setupRequired
               ? setupEnabled
                 ? "Create the first administrator account to start building your learning community."
-                : "The workspace owner needs to enable administrator setup before accounts can be created."
+                : setupIssue === "missing_key"
+                  ? "The running workspace has not received its setup key. If you have already saved it in Cloudflare, deploy the Worker version containing the secret, then check again."
+                  : setupIssue === "invalid_key"
+                    ? "The configured setup key must contain 32–512 characters. Update its value in Cloudflare, save and deploy the change, then check again."
+                    : "The workspace owner needs to enable administrator setup before accounts can be created."
               : registering
                 ? "Create your learner account and find your next opportunity to grow."
                 : "Sign in to pick up where you left off."}
